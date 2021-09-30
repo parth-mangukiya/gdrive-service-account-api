@@ -18,7 +18,8 @@ class googleDrive
 
         $credentialsFile =  __DIR__ . '/service-account.json';
         if (!file_exists($credentialsFile)) {
-            throw new RuntimeException('Service account credentials Not Found!');
+            echo ('Service account credentials Not Found!');
+            exit;
         }
 
         putenv('GOOGLE_APPLICATION_CREDENTIALS=' . __DIR__ . '/service-account.json');
@@ -45,6 +46,7 @@ class googleDrive
     public function getlist($folderPath)
     {
         $this->folderId = FOLDER_ID;
+
         $folder = explode('/', $folderPath);
         $folder = array_filter($folder, function ($var) {
             return ($var !== NULL && $var !== FALSE && $var !== "");
@@ -52,9 +54,10 @@ class googleDrive
 
         # passed 0 to not create a folder if folder not Found
         # passed 1 to create a folder if folder not Found
-        $listfolderName = $this->lastChildId($folder, 0); // call function to set magic folder id
 
-        if ($listfolderName != false) {
+        if (!empty($folder)) {
+
+            $last_folder_id = $this->lastChildId($folder, 0);
 
             if ($this->driveType == 'shared') {
                 $optParams = array(
@@ -63,18 +66,19 @@ class googleDrive
                     'includeItemsFromAllDrives' => true,
                     'pageSize' => 100,
                     'supportsAllDrives' => true,
-                    'fields' => 'nextPageToken, files(id, name)',
-                    'q' => "'" . $this->folderId . "' in parents"
+                    'fields' => "nextPageToken, files(contentHints/thumbnail,fileExtension,iconLink,id,name,size,thumbnailLink,webContentLink,webViewLink,mimeType,parents)",
+                    'q' => "trashed=false and '" . $this->folderId . "' in parents"
                 );
             } else {
                 $optParams = array(
                     'pageSize' => 100,
                     'fields' => "nextPageToken, files(contentHints/thumbnail,fileExtension,iconLink,id,name,size,thumbnailLink,webContentLink,webViewLink,mimeType,parents)",
-                    'q' => "'" . $this->folderId . "' in parents"
+                    'q' => "trashed=false and '" . $this->folderId . "' in parents"
                 );
             }
 
             $last_Child_folder = $this->service->files->listFiles($optParams); // get list of all child Items 
+
 
             if (!empty($last_Child_folder['files'])) {
                 $itemList = [];
@@ -89,8 +93,8 @@ class googleDrive
                         $itemList['folder'][$key]['name'] = $item->name;
                         $itemList['folder'][$key]['Id'] =  $get_sub_folder;
                     } else {
-                        # this is the Files list so add to Files array
 
+                        # this is the Files list so add to Files array
                         $get_sub_folder = $item->id;
                         $itemList['files'][$key]['name'] = $item->name;
                         $itemList['files'][$key]['id'] =  $get_sub_folder;
@@ -106,7 +110,7 @@ class googleDrive
                 return 'No files found';
             }
         } else {
-            return 'No such directory exists';
+            return 'Please add valid path';
         }
     }
 
@@ -132,9 +136,11 @@ class googleDrive
     {
         $this->folderId = FOLDER_ID;
         $folder = explode('/', $folderPath);
+
         $folder = array_filter($folder, function ($var) {
             return ($var !== NULL && $var !== FALSE && $var !== "");
         });
+
 
         $uploadFolderName = $this->lastChildId($folder); // call function to set magic folder id
 
@@ -143,6 +149,7 @@ class googleDrive
             if (!is_array($filePaths)) {
                 return 'Only array allowed';
             }
+
             foreach ($filePaths as $filePath) {
                 if (!file_exists($filePath)) {
                     continue;
@@ -165,7 +172,7 @@ class googleDrive
                         'supportsAllDrives' => true,
                     );
 
-                    return  $this->service->files->create($file, $optParams);
+                    $return_arr[] =   $this->service->files->create($file, $optParams);
                 } else {
 
                     $fileMetadata = new Google_Service_Drive_DriveFile(array(
@@ -200,7 +207,6 @@ class googleDrive
         $files = $this->getlist($folder_path);
 
         if (isset($files['files']) && !empty($files['files'])) {
-            $file_list_id = array_column($files['files'], 'download_link');
             $file_list_name = array_column($files['files'], 'name');
 
             // # create new zip object
@@ -211,11 +217,15 @@ class googleDrive
             $zip->open($tmp_file, ZipArchive::CREATE);
 
             # loop through each file
-            foreach ($file_list_id as $key => $fileid) {
-                # download file
-                $download_file = file_get_contents($fileid);
+            foreach ($files['files'] as $key => $fileid) {
+
+                $content = $this->service->files->get($fileid['id'], array("alt" => "media"));
+
                 #add it to the zip
-                $zip->addFromString($file_list_name[$key], $download_file);
+                while (!$content->getBody()->eof()) {
+                    // fwrite($outHandle, $content->getBody()->read(1024));
+                    $zip->addFromString($file_list_name[$key], $content->getBody()->getContents());
+                }
             }
 
             # close zip
@@ -238,6 +248,7 @@ class googleDrive
         if (!empty($foldername)) {
             foreach ($foldername as $newSubfolderName) {
 
+
                 if ($this->driveType == 'shared') {
                     $optParams = array(
                         'corpora' => 'drive',
@@ -246,17 +257,20 @@ class googleDrive
                         'pageSize' => 100,
                         'supportsAllDrives' => true,
                         'fields' => 'nextPageToken, files(id, name)',
-                        'q' => "'" . $this->folderId . "' in parents"
+                        'q' => "trashed=false and '" . $this->folderId . "' in parents"
                     );
                 } else {
                     $optParams = array(
                         'pageSize' => 100,
                         'fields' => "nextPageToken, files(contentHints/thumbnail,fileExtension,iconLink,id,name,size,thumbnailLink,webContentLink,webViewLink,mimeType,parents)",
-                        'q' => "'" . $this->folderId . "' in parents"
+                        'q' => "trashed=false and '" . $this->folderId . "' in parents"
                     );
                 }
 
+
+
                 $Child_folder_list = $this->service->files->listFiles($optParams); // get list of all child Items 
+
 
                 if (!empty($Child_folder_list['files'])) {
 
@@ -265,8 +279,10 @@ class googleDrive
                         return $e->name;
                     }, $Child_folder_list['files']);
 
-                    $key = array_search($newSubfolderName, $childNameList);
-                    if (!empty($key) || $key === 0) {
+                    $forder_exist = in_array($newSubfolderName, $childNameList);
+
+                    if (!empty($forder_exist)) {
+                        $key = array_search($newSubfolderName, $childNameList);
                         $this->folderId = $Child_folder_list['files'][$key]->id; // if folder already exist then just set folder id
                     } else {
                         if ($Isfoldercreate == 1) {
