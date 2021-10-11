@@ -5,7 +5,7 @@ There are some below steps to setup google drive api with your php projects.
 
 - Go to the [Google cloud console](https://console.cloud.google.com/)
 - Click on create a new project [here](https://i.ibb.co/fxSnBKB/image.png)
-    - Add project name and click on create.(You can see the notification when proket being create)
+    - Add project name and click on create.(You can see the notification when project being create)
 
 
 - Now create a client creadential that we use in our site to upload file,create folders etc.
@@ -18,7 +18,7 @@ There are some below steps to setup google drive api with your php projects.
     - Select Key type as json and click on create after that 1 json download in your Computer.
 
 
-##### Step 2 : Lte's integrate with our porject
+##### Step 2 : Let's integrate with our porject
 
 - Copy the content of file from your downloaded file of the service account creadential from cloud console.
 - add this content to service-account.json
